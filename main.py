@@ -1,29 +1,47 @@
-from Unit import Unit
-from ConnectableUnit import ConnectableUnit
-
-class JurdicalUnit(Unit):
-    pass
+from System import System
+from typing import List
+import random
 
 
-class PoliticalUnit(ConnectableUnit):
-    def connect(self, unit: JurdicalUnit):
-        unit.process(self.state[0])
+def produce_case(laws: List[str], case: str):
+    status = random.choice(["guilty", "not guilty"])
+    print("processing case", case, " with laws:", laws)
+    return {
+        "case": case,
+        "status": status
+    }
+def review_law(law: str):
+    status = random.choice(["constitutional", "unconstitutional"])
+    print("processing case", law)
+    return {
+        "law": law,
+        "status": status
+    }
 
-def review_law(law: str) -> str:
-    result = f"review law: {law}"
-    print(result)
-    return result
 
-def reform_law(law: str) -> str:
-    result = f"reform law: {law}"
-    print(result)
-    return result
+judicial_unit = System(
+    "judicial", 
+    {
+        "produce_case": produce_case, 
+        "review_law": review_law
+     })
 
-ju = JurdicalUnit("JurdicalUnit", review_law)
-pu = PoliticalUnit("PoliticalUnit", reform_law)
+def produce_law():
+    return "you shall not kill " + random.choice(["humans", "ducks", "fish"])
 
-if __name__ == "__main__":
-    print("Hello! this is Optimus 🦾")
-    pu.process("1st amendment")
-    pu.process("2nd amendment")
-    pu.connect(ju)
+political_unit = System("political", {"produce_law": produce_law})
+
+political_unit.process("produce_law")
+political_unit.process("produce_law")
+laws = political_unit.get_state()
+
+print(laws)
+
+judicial_unit.process("produce_case", laws, "Mohamed killed an alien")
+cases = judicial_unit.get_state()
+print(cases)
+political_unit.process("produce_law")
+laws = political_unit.get_state()["produce_law"]
+latest_law = laws[-1]
+judicial_unit.process("review_law", latest_law)
+print(judicial_unit.get_state())
