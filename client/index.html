@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
+                background-color: black;
+            }
+            canvas {
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="lineCanvas"></canvas>
+
+        <script>
+            function getPointOnCurve(t, shortestPair, cp1X, cp1Y, cp2X, cp2Y) {
+                const x = Math.pow(1 - t, 3) * shortestPair.start.x + 3 * Math.pow(1 - t, 2) * t * cp1X + 3 * (1 - t) * Math.pow(t, 2) * cp2X + Math.pow(t, 3) * shortestPair.end.x;
+                const y = Math.pow(1 - t, 3) * shortestPair.start.y + 3 * Math.pow(1 - t, 2) * t * cp1Y + 3 * (1 - t) * Math.pow(t, 2) * cp2Y + Math.pow(t, 3) * shortestPair.end.y;
+                return { x, y };
+            }
+            const canvas = document.getElementById("lineCanvas");
+            const ctx = canvas.getContext("2d");
+
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            canvas.style.width = `${window.innerWidth}px`;
+            canvas.style.height = `${window.innerHeight}px`;
+            ctx.scale(dpr, dpr);
+
+            const rects = [
+                { x: 50, y: 50, width: 200, height: 80, label: "System A", color: "white", isDragging: false },
+                { x: 300, y: 200, width: 200, height: 80, label: "System B", color: "white", isDragging: false }
+            ];
+            // ctx.shadowBlur = 1000;
+            ctx.shadowColor = "black";
+            
+            // Draw all elements
+            function draw() {
+                ctx.globalCompositeOperation = 'destination-over'
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw rectangles with borders and labels
+                rects.forEach((rect) => {
+                    // Draw rectangle border
+                    ctx.strokeStyle = rect.color;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 10);
+                    ctx.stroke();
+
+                    // Draw label
+                    ctx.font = "16px Arial";
+                    ctx.fillStyle = rect.color;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(rect.label, rect.x + rect.width / 2, rect.y + rect.height / 2);
+                });
+
+                // Draw line between the closest edges of the rectangles
+                drawShortestPath();
+            }
+
+            // Draw the shortest line between two rectangles
+            function drawShortestPath() {
+                const [rectA, rectB] = rects;
+
+                // Get all edge midpoints
+                const pointsA = [
+                    { x: rectA.x, y: rectA.y + rectA.height / 2 }, // Left
+                    { x: rectA.x + rectA.width, y: rectA.y + rectA.height / 2 }, // Right
+                    { x: rectA.x + rectA.width / 2, y: rectA.y }, // Top
+                    { x: rectA.x + rectA.width / 2, y: rectA.y + rectA.height } // Bottom
+                ];
+
+                const pointsB = [
+                    { x: rectB.x, y: rectB.y + rectB.height / 2 }, // Left
+                    { x: rectB.x + rectB.width, y: rectB.y + rectB.height / 2 }, // Right
+                    { x: rectB.x + rectB.width / 2, y: rectB.y }, // Top
+                    { x: rectB.x + rectB.width / 2, y: rectB.y + rectB.height } // Bottom
+                ];
+
+                // Find the shortest path
+                let shortestDistance = Infinity;
+                let shortestPair = {};
+
+                pointsA.forEach((pointA) => {
+                    pointsB.forEach((pointB) => {
+                        const distance = Math.hypot(pointB.x - pointA.x, pointB.y - pointA.y);
+                        if (distance < shortestDistance) {
+                            shortestDistance = distance;
+                            shortestPair = { start: pointA, end: pointB };
+                        }
+                    });
+                });
+                
+                // Calculate control points for a smooth curve
+                const cp1X = shortestPair.start.x + (shortestPair.end.x - shortestPair.start.x) / 2;
+                const cp1Y = shortestPair.start.y;
+                const cp2X = shortestPair.end.x - (shortestPair.end.x - shortestPair.start.x) / 2;
+                const cp2Y = shortestPair.end.y;
+
+                // Draw the shortest line
+                ctx.beginPath();
+                ctx.moveTo(shortestPair.start.x, shortestPair.start.y);
+                ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, shortestPair.end.x, shortestPair.end.y);
+
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2;
+                ctx.lineCap = "round";
+                ctx.stroke();
+                let t = 0;  // t will range from 0 to 1,
+
+                function animate() {
+                    // Get position of the point on the bezier curve at current t
+                    const point = getPointOnCurve(t, shortestPair, cp1X, cp1Y, cp2X, cp2Y);
+                    
+                    // Draw the blooming blue point
+                    ctx.beginPath();
+                    ctx.arc(point.x, point.y, 2, 0, Math.PI * 2);
+                    ctx.fillStyle = "rgba(255, 0, 0, 0.5)";;
+                    ctx.fill();
+
+                    // Increase t for the next frame (animation progression)
+                    t += 0.02;
+                    if (t > 1) t = 0; // Loop back to the start when it reaches the end
+
+                    // Request the next animation frame
+                    requestAnimationFrame(animate);
+                }
+                animate()
+            }
+
+            // Handle mouse events
+            let activeRect = null;
+
+            canvas.addEventListener("mousedown", (e) => {
+                const mouseX = e.offsetX;
+                const mouseY = e.offsetY;
+
+                // Check if mouse is inside a rectangle
+                activeRect = rects.find(
+                    (rect) =>
+                        mouseX > rect.x &&
+                        mouseX < rect.x + rect.width &&
+                        mouseY > rect.y &&
+                        mouseY < rect.y + rect.height
+                );
+
+                if (activeRect) {
+                    activeRect.isDragging = true;
+                }
+            });
+
+            canvas.addEventListener("mousemove", (e) => {
+                if (activeRect && activeRect.isDragging) {
+                    const mouseX = e.offsetX;
+                    const mouseY = e.offsetY;
+
+                    // Update rectangle position
+                    activeRect.x = mouseX - activeRect.width / 2;
+                    activeRect.y = mouseY - activeRect.height / 2;
+
+                    draw(); // Redraw canvas
+                }
+            });
+
+            canvas.addEventListener("mouseup", () => {
+                if (activeRect) {
+                    activeRect.isDragging = false;
+                }
+            });
+
+            canvas.addEventListener("mouseleave", () => {
+                if (activeRect) {
+                    activeRect.isDragging = false;
+                }
+            });
+
+            // Initial draw
+            draw();
+        </script>
+    </body>
+</html>
